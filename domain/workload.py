@@ -142,6 +142,8 @@ class Workload:
                 logger.info(f"Training model {idx} with upper_bounds")
                 ub_trainer = Upper_bounds_trainer(instance_name=self.name, model_name=self.model_name)
                 ub_trainer.train(max_epochs=max_epochs, seed=seed, smoothing=smoothing)
+                # for now keep the model in the ub_trainer, so we can use it for evaluation later
+                model.classifier = ub_trainer
                 
 
     def evaluate(self, evaluation_type: str = "ensemble", debug: bool = False, num_samples: int = 100):
@@ -152,6 +154,8 @@ class Workload:
             evaluator.evaluate(workload=self, eval_type=evaluation_type, debug=debug)
         elif evaluation_type == "mc_dropout":
             evaluator.evaluate(workload=self, eval_type=evaluation_type, num_samples=num_samples, debug=debug)
+        elif evaluation_type == "ub":
+            evaluator.evaluate(workload=self, eval_type=evaluation_type, debug=debug)
         else:
             raise NotImplementedError(f"Evaluation type '{evaluation_type}' is not supported.")
 
