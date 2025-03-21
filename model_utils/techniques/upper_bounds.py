@@ -65,11 +65,12 @@ class CustomDataset(Dataset):
         gold_class = LABEL_2_ID.get(label_str, 0)
         highest_agreement = row["highest_agreement"]
 
-        # gold_label gets highest_agreement and others share the remainder.
-        soft_label = [(1 - highest_agreement) / (self.num_classes - 1)] * self.num_classes
-        soft_label[gold_class] = highest_agreement
+        # each label gets the corresponding empirical probability, <unk> is 0
+        soft_label = [0] * self.num_classes
+        for label_type in LABEL_2_ID:    
+            if label_type != '<unk>':
+                soft_label[LABEL_2_ID[label_type]] = row[label_type + "_probability"]
         soft_label = torch.tensor(soft_label, dtype=torch.float)
-
         encoding = self.tokenizer.encode_plus(
             text,
             add_special_tokens=True,
