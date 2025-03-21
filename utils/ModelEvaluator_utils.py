@@ -69,8 +69,6 @@ class ModelEvaluator:
         
         for model in workload.models:
             labels, scores = model.classifier.predict(row) # model.classifier is actually upper_bound_trainer
-            print(labels)
-            print(scores)
             label_and_scores = {label: score for label, score in zip(labels, scores)}
             list_label_and_scores.append(label_and_scores)
             all_classes_scores.extend(scores)
