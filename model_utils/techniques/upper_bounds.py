@@ -185,7 +185,7 @@ class Upper_bounds_trainer():
         # TODO if model is None raise panic
         self.model.to(self.device)
 
-        loss_fn = LabelSmoothingCrossEntropyLoss(num_classes=self.num_classes)
+        loss_fn = nn.CrossEntropyLoss()
         loss_fn.to(self.device)
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=learning_rate) # TODO this should be a parameter and not hardcoed AdamW
 
