@@ -351,7 +351,12 @@ class WorkloadEvaluator:
                         #current_evaluation = f"{model}_{ds}_{tech}_{idx +1}"
                         workload = Workload.load(workload_name = current_evaluation,load_models=False, quiet=True)
                         self.label_columns= self.load_labels(workload=workload)
+                        print(self.label_columns)
+                        print(workload.df['entropy_agreement'])
+                        input()
                         workload.df['entropy_agreement'] = workload.df.apply(lambda row: self.compute_entropy(row, self.label_columns), axis=1) 
+                        print(workload.df['entropy_agreement'])
+
                         corr_table = workload.compare_correlations(workload_to_compare=workload,base_columns=['entropy_agreement'], columns_to_compare=['highest_agreement', 'entropy_agreement','entropy_mean_prediction', 'mean_variance', 'mean_jsd'])
                         tabels.append(corr_table)
 
@@ -495,8 +500,8 @@ class WorkloadEvaluator:
                         )
                         correlation = workload.df[measure].corr(workload.df['entropy_mean_prediction'])
                         #plt.title(f'Correlation = {correlation:.6f}')
-                        plt.xlabel(self.mapping_helper[measure])
-                        plt.ylabel(self.mapping_helper['entropy_mean_prediction'])
+                        plt.xlabel(self.mapping_helper[measure], fontsize = 14)
+                        plt.ylabel(self.mapping_helper['entropy_mean_prediction'], fontsize = 14)
                         plt.grid(True, linestyle='--', alpha=0.6)
                     plt.tight_layout()
                     #plt.show()
@@ -595,6 +600,7 @@ class WorkloadEvaluator:
                     tabels = []
                     for idx in range(3): 
                         current_evaluation = f"{model}_{ds}_{tech}_{idx + 1}"
+                        print(current_evaluation)
                         workload = Workload.load(workload_name=current_evaluation, load_models=False, quiet=True)
                         self.label_columns= self.load_labels(workload)
                         workload.df['entropy_agreement'] = workload.df.apply(lambda row: self.compute_entropy(row, self.label_columns), axis=1) 
@@ -634,8 +640,12 @@ class WorkloadEvaluator:
                             q = row[model_cols].values.astype(np.float64)
                             p /= p.sum()
                             q /= q.sum()
+                            print(p)
+                            print(q)
                             js_distance = jensenshannon(p, q, base=2)
                             js_divergence = js_distance ** 2 
+                            print(js_divergence)
+                            #input()
                             return js_divergence
 
                         df['JSD'] = df.apply(compute_jsd, axis=1)
@@ -653,6 +663,8 @@ class WorkloadEvaluator:
 
 
                         df['Correlation'] = df.apply(compute_correlation, axis=1)
+                        # print(df['Correlation'])
+                        # input()
 
                         def compute_kl_divergence(row):
                             p = row[annotator_cols].values.astype(np.float64)
@@ -667,7 +679,8 @@ class WorkloadEvaluator:
 
 
                         df['KL_Divergence'] = df.apply(compute_kl_divergence, axis=1)
-
+                        #input()
+                        
                         from sklearn.metrics.pairwise import cosine_similarity
 
                         def compute_cosine_similarity(row):
@@ -699,7 +712,7 @@ class WorkloadEvaluator:
                         df['MSE'] = df.apply(compute_mse, axis=1)
 
                     #metrics = ['JSD', 'Correlation', 'KL_Divergence', 'Cosine_Similarity', 'MAE', 'MSE']
-                    metrics = ['JSD', 'Correlation','MSE']
+                    metrics = ['JSD', 'Correlation', 'Cosine_Similarity','MSE', 'KL_Divergence']
                     
                     # Create a new dataframe with only 3 rows (one for each seed)
                     summary_df = pd.DataFrame(columns= metrics, index = [0,1,2], dtype=np.float64)
@@ -777,12 +790,18 @@ class WorkloadEvaluator:
             corr_std  = tbl.loc['std',  'Correlation']
             mse_mean  = tbl.loc['mean', 'MSE']
             mse_std   = tbl.loc['std',  'MSE']
+            kld_mean = tbl.loc['mean', 'KL_Divergence']
+            kld_std  = tbl.loc['std',  'KL_Divergence']
+            cosine_mean  = tbl.loc['mean', 'Cosine_Similarity']
+            cosine_std   = tbl.loc['std',  'Cosine_Similarity']
             key = (ds, tech)
             if key not in aggregated:
                 aggregated[key] = {
                     'JSD_mean': 0, 'JSD_std': 0,
                     'Correlation_mean': 0, 'Correlation_std': 0,
-                    'MSE_mean': 0, 'MSE_std': 0
+                    'MSE_mean': 0, 'MSE_std': 0,
+                    'KL_Divergence_mean': 0, 'KL_Divergence_std': 0,
+                    'Cosine_Similarity_mean': 0, 'Cosine_Similarity_std': 0
                 }
                 counts[key] = 0
             aggregated[key]['JSD_mean'] += jsd_mean
@@ -791,6 +810,10 @@ class WorkloadEvaluator:
             aggregated[key]['Correlation_std']  += corr_std
             aggregated[key]['MSE_mean']   += mse_mean
             aggregated[key]['MSE_std']    += mse_std
+            aggregated[key]['KL_Divergence_mean'] += kld_mean
+            aggregated[key]['KL_Divergence_std']  += kld_std
+            aggregated[key]['Cosine_Similarity_mean']   += cosine_mean
+            aggregated[key]['Cosine_Similarity_std']    += cosine_std
             counts[key] += 1
 
         for key in aggregated:
@@ -800,6 +823,10 @@ class WorkloadEvaluator:
             aggregated[key]['Correlation_std']  /= counts[key]
             aggregated[key]['MSE_mean']   /= counts[key]
             aggregated[key]['MSE_std']    /= counts[key]
+            aggregated[key]['KL_Divergence_mean'] /= counts[key]
+            aggregated[key]['KL_Divergence_std']  /= counts[key]
+            aggregated[key]['Cosine_Similarity_mean']   /= counts[key]
+            aggregated[key]['Cosine_Similarity_std']    /= counts[key]
 
         table_rows = []
         all_datasets = self.datasets #sorted({entry['dataset'] for entry in data})
@@ -813,7 +840,9 @@ class WorkloadEvaluator:
                         'Technique': 'Failed to load',
                         'Mean JSD': '',
                         'Mean Correlation': '',
-                        'Mean MSE': ''
+                        'Mean MSE': '',
+                        'Mean KL_Divergence': '',
+                        'Mean Cosine_Similarity': ''
                     }
                     table_rows.append(row)
                 else:
@@ -825,7 +854,9 @@ class WorkloadEvaluator:
                             'Technique': self.mapping_helper.get(tech, tech),
                             'Mean JSD': f"{vals['JSD_mean']:.3f} $\\pm$ {vals['JSD_std']:.3f}",
                             'Mean Correlation': f"{vals['Correlation_mean']:.3f} $\\pm$ {vals['Correlation_std']:.3f}",
-                            'Mean MSE': f"{vals['MSE_mean']:.4f} $\\pm$ {vals['MSE_std']:.4f}"
+                            'Mean MSE': f"{vals['MSE_mean']:.4f} $\\pm$ {vals['MSE_std']:.4f}",
+                            'Mean KL_Divergence': f"{vals['KL_Divergence_mean']:.3f} $\\pm$ {vals['KL_Divergence_std']:.3f}",
+                            'Mean Cosine_Similarity': f"{vals['Cosine_Similarity_mean']:.4f} $\\pm$ {vals['Cosine_Similarity_std']:.4f}"
                         }
                         table_rows.append(row)
                     else:
@@ -845,9 +876,9 @@ class WorkloadEvaluator:
         latex_lines.append("    \\centering")
         latex_lines.append("    \\small")
         latex_lines.append("")
-        latex_lines.append("    \\begin{tabular}{llccc}")
+        latex_lines.append("    \\begin{tabular}{llccccc}")
         latex_lines.append("    \\toprule")
-        latex_lines.append("    \\textbf{Dataset} & \\textbf{Technique} & \\textbf{Mean JSD $\\downarrow$}  & \\textbf{Mean Correlation $\\uparrow$} & \\textbf{Mean MSE $\\downarrow$} \\\\")
+        latex_lines.append("    \\textbf{Dataset} & \\textbf{Technique} & \\textbf{Mean JSD $\\downarrow$}  & \\textbf{Mean Correlation $\\uparrow$} & \\textbf{Mean KL_Divergence $\\downarrow$} & \\textbf{Mean Cosine Similarity $\\uparrow$} & \\textbf{Mean MSE $\\downarrow$} \\\\")
         latex_lines.append("    \\midrule")
         
         dataset_keys = list(grouped_rows.keys())
@@ -858,9 +889,9 @@ class WorkloadEvaluator:
                 if row['Technique'] == 'Oracle':
                     latex_lines.append(" \\cmidrule{2-5}")
                 if j == 0:
-                    latex_lines.append(f"    \\multirow{{{n_rows}}}{{*}}{{{row['Dataset']}}} & {row['Technique']} & {row['Mean JSD']} & {row['Mean Correlation']} & {row['Mean MSE']} \\\\")
+                    latex_lines.append(f"    \\multirow{{{n_rows}}}{{*}}{{{row['Dataset']}}} & {row['Technique']} & {row['Mean JSD']} & {row['Mean Correlation']} & {row['Mean KL_Divergence']} & {row['Mean Cosine_Similarity']} & {row['Mean MSE']} \\\\")
                 else:
-                    latex_lines.append(f"     & {row['Technique']} & {row['Mean JSD']} & {row['Mean Correlation']} & {row['Mean MSE']} \\\\")
+                    latex_lines.append(f"     & {row['Technique']} & {row['Mean JSD']} & {row['Mean Correlation']} & {row['Mean KL_Divergence']} & {row['Mean Cosine_Similarity']} & {row['Mean MSE']} \\\\")
             if i < len(dataset_keys) - 1:
                 latex_lines.append("    \\midrule")
         latex_lines.append("    \\bottomrule")
@@ -1519,6 +1550,7 @@ class WorkloadEvaluator:
         base_path = os.path.join(os.getcwd(), "saved_results", workload_name)
         df_path = os.path.join(base_path, "test.csv") # this could be a parameter
         if not os.path.exists(df_path):
+            print(df_path)
             raise FileNotFoundError(f"The DataFrame file {df_path} does not exist.")
         df = pd.read_csv(df_path)
         # Debug:
@@ -1526,8 +1558,8 @@ class WorkloadEvaluator:
         print(f"DEBUG plot_histrogram for df: {workload_name} with column: {column} -> Min: {df['entropy_agreement'].min()}, Mean: {df['entropy_agreement'].mean()}, Max: {df['entropy_agreement'].max()}")
         plt.hist(df[column], bins=bins,  edgecolor='black')
         #plt.title(title)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
+        plt.xlabel(xlabel, fontsize=12)
+        plt.ylabel(ylabel, fontsize=12)
         #plt.xlim((0,1.6))
         if save:
             save_path = os.path.join(os.getcwd(),'analysis_results', 'plots', f"histogram_{workload_name}_{column}.png")
@@ -1560,11 +1592,14 @@ class WorkloadEvaluator:
 if __name__ == "__main__":
     start_time = time.time()
     
-    models = ["roberta", "bert", "xlnet"] # Models to use in the batch
+    models = ["bert", "roberta", "xlnet"] # Models to use in the batch
     datasets = ['go_emotions', "rt", "hate_gap"] # Datasets to use in the batch
     #techniques = ["baseline", "mc", "smoothing", "de", "random"] # Techniques to use, tho only Baseline, MC Dropout, Label Smoothing and deep ensamble is currently implemented
     
-    techniques = ['mc','baseline', "smoothing", "de", 'ub' ] # Techniques to use, tho only Baseline, MC Dropout, Label Smoothing and deep ensamble is currently implemented
+    techniques = ['baseline', "de",'mc','smoothing','ub' ] # Techniques to use, tho only Baseline, MC Dropout, Label Smoothing and deep ensamble is currently implemented
+    # ub always needs to be the last technique
+    # baseline always needs to be first technique
+    
     num_runs = 3  # Number of runs per technique, the models have to be trained and exists in the saved_results folder
     enable_plotting = True  # Set to False to disable plotting # TODO impl plotting and verbose output.
 
@@ -1575,16 +1610,16 @@ if __name__ == "__main__":
 
     evaluator = WorkloadEvaluator(models, datasets, techniques, num_runs, enable_plotting)
         
-    evaluator.calculate_evaluation_metrics_for_base(print_latex=False)
-    evaluator.ambiguity_human_vs_models_correlation()
-    evaluator.scatter_plot_correlation_user_vs_models_entropy()
-    evaluator.scatter_plot_correlation_user_vs_models_entropy_combined()
+    # evaluator.calculate_evaluation_metrics_for_base(print_latex=False)
+    # evaluator.ambiguity_human_vs_models_correlation()
+    # evaluator.scatter_plot_correlation_user_vs_models_entropy()
+    # evaluator.scatter_plot_correlation_user_vs_models_entropy_combined()
     evaluator.calculate_JSD_MSE_CORR()
-    evaluator.proof_of_concept_ambiguity_sample_detection(threshold_range_start = 60, threshold_range_end = 60, threshold_agreement_start = 60, threshold_agreement_end = 60, text_scale=1.0, use_random_evaluation = True)
-    evaluator.proof_of_concept_ambiguity_sample_detection_latex_tabel(threshold_range_start = 60, threshold_range_end = 60, threshold_agreement_start = 60, threshold_agreement_end = 60)
+    #evaluator.proof_of_concept_ambiguity_sample_detection(threshold_range_start = 60, threshold_range_end = 60, threshold_agreement_start = 60, threshold_agreement_end = 60, text_scale=1.0, use_random_evaluation = True)
+    #evaluator.proof_of_concept_ambiguity_sample_detection_latex_tabel(threshold_range_start = 60, threshold_range_end = 60, threshold_agreement_start = 60, threshold_agreement_end = 60)
 
     #evaluator.proof_of_concept_ambiguity_sample_detection_latex_tabel() # this is called twice, so keep it out of the main function ...
-    evaluator.prove_of_concept_ambiguity_sample_detection_combined_ROC(text_scale=1.5) # this could be merged with the other ROC plotting ... 
+    #evaluator.prove_of_concept_ambiguity_sample_detection_combined_ROC(text_scale=1.5) # this could be merged with the other ROC plotting ... 
     
     # be sure there was no exception thrown, otherwise we may miss results
     print("All done, check saved results in the analysis_results folder.")
